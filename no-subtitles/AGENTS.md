@@ -12,7 +12,7 @@ in a private GCS bucket you have access to).
 
 ## 1. Get this repo
 ```bash
-git clone https://github.com/WandLZhang/canto-subs.git && cd canto-subs
+git clone https://github.com/WandLZhang/video-subtitles.git && cd video-subtitles/no-subtitles
 ```
 
 ## 2. Pull the subtitle artifacts from GCS
