@@ -1,4 +1,4 @@
-# Addendum — hkanime Cantonese-dub anime (口語 source reference)
+# Watchlist — hkanime Cantonese-dub anime (口語 source reference)
 
 [hkanime.com](https://www.hkanime.com) (香港動畫網) is a public **粵語配音** (Cantonese-dubbed) anime platform — a natural listening source for 口語 practice. This is a **titles-only** snapshot of its catalog (no stream links), pulled from its public `json-api` on 2026-07-08, plus my picks. **461 titles.**
 
