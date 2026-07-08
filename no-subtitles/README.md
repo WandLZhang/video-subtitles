@@ -3,7 +3,7 @@
 Part of **[video-subtitles](../README.md)** — the modality for videos with **no usable
 subtitles**: transcribe the audio (ASR) into colloquial written-Cantonese (口語 / 粵文)
 and English, on a GCP L4 GPU. Per-video outputs go in
-[`../workproducts/<video>/`](../workproducts/) (gitignored; mirrored to GCS).
+[`videos/<video>/`](videos/) (gitignored; mirrored to GCS).
 
 It orchestrates two community tools rather than reinventing them:
 
@@ -19,7 +19,7 @@ Chinese (SWC / 書面語)** — transcribing the *audio* is the only way to get 
 homophone-correction (see *Fidelity*).
 
 > **Copyright:** tooling only. Generated `.srt`/`.vtt`/`.mp4` are derivatives of a
-> copyrighted film — **gitignored**, kept in `../workproducts/<video>/` and a private
+> copyrighted film — **gitignored**, kept in `videos/<video>/` and a private
 > GCS bucket. See [`docs/ACCESS.md`](docs/ACCESS.md).
 
 ## Prerequisites
@@ -39,7 +39,7 @@ HF_TOKEN=hf_... VIDEO_URL="https://www.youtube.com/watch?v=..." STEM=fensau100 b
 # 3. Translate 口語 -> English (BYO key)
 GOOGLE_API_KEY=... bash pipeline/02_translate.sh <stem>.srt "Break Up 100 (2014 HK romcom)"
 
-# 4. Publish artifacts to the private bucket (they also belong in ../workproducts/<stem>/)
+# 4. Publish artifacts to the private bucket (they also belong in videos/<stem>/)
 BUCKET=gs://my-bucket STEM=fensau100 bash pipeline/03_publish.sh <stem>.srt <stem>.en.srt
 
 # 5. Watch / QA  — see docs/ACCESS.md          6. Tear down:  bash infra/teardown.sh
@@ -70,5 +70,5 @@ pipeline/   01 transcribe · 02 translate · 03 publish · 04/05 fidelity checks
 player/     Range-capable server + dual-track HTML5 player
 docs/       ACCESS.md — pull artifacts from GCS + play commands
 config/     characters.yaml — name map for translation accuracy
-            outputs -> ../workproducts/<video>/
+            outputs -> videos/<video>/
 ```
