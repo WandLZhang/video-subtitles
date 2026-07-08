@@ -17,11 +17,16 @@ a timing nudge.
    (bottom)** synced to the player.
 
 ## Translation quality (read this)
-- **On-device Chrome Translator** (default): free, no key — but *gist-level* and literal.
-  It cannot fix errors in the source: garbage-in → garbage-out (e.g. a mis-heard `物探`
-  becomes "geographic exploration").
-- **LLM (recommended for real use):** replace the `tr` fn with a keyed Gemini/Claude call
-  — uses context and repairs source slips. Same overlay.
+- **On-device Chrome Translator** (`bookmarklet.js`, default): free, no key — but
+  *gist-level* and literal. It cannot fix errors in the source: garbage-in → garbage-out
+  (e.g. a mis-heard `物探` becomes "geographic exploration").
+- **LLM (`bookmarklet-llm.js`, recommended for real use):** a keyed Gemini call that uses
+  cross-cue context and **repairs** ASR slips (`過工`→"high blood sugar", `物探`→"spies").
+  Same overlay. Set `KEY` in the file (mint one at [AI Studio](https://aistudio.google.com/apikey),
+  or in GCP: `gcloud services enable generativelanguage.googleapis.com` + create a key) —
+  **never commit the key**. Model defaults to `gemini-flash-lite-latest` (fastest, ~3.5 s /
+  50 cues); swap to `gemini-3.5-flash` for higher quality. Batches are parallelized, capped
+  with `maxOutputTokens` so the JSON never truncates, and blank-skip on a bad batch.
 
 ## Timing
 Community srts are often timed to a different release/cut. Nudge live in the console:
@@ -29,7 +34,8 @@ Community srts are often timed to a different release/cut. Nudge live in the con
 
 ## Files
 - `overlay.js` — reusable module (parse · timing · translate · render); Node-testable.
-- `bookmarklet.js` — paste-and-go console/bookmarklet (prompts for the SRT URL).
+- `bookmarklet.js` — paste-and-go, **on-device** translation (no key; prompts for the SRT URL).
+- `bookmarklet-llm.js` — paste-and-go, **keyed Gemini** translation (better; set `KEY` first).
 - `test.html` + `sample.srt` — local harness. `overlay.test.js` covers the pure logic (`node overlay.test.js`).
 
 ## Caveats
