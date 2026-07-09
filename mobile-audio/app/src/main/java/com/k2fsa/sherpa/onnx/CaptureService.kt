@@ -113,6 +113,7 @@ class CaptureService : Service() {
             lang = Prefs.lang(this)
             overlay?.setLang(lang)
             Dict.loadFor(this, lang)
+            if (lang == "ja") JaAnalyzer.warmup()
             val p = ModelStore.paths(this)
             vad = Vad(
                 assetManager = null,
@@ -210,25 +211,30 @@ class CaptureService : Service() {
             val fin = finalQueue.poll(50, TimeUnit.MILLISECONDS)
             if (fin != null) {
                 val txt = decode(a, fin)
-                if (txt.isNotBlank()) onFinal(toDisplay(txt))
+                if (txt.isNotBlank()) onFinal(txt)
                 continue
             }
             val p = pendingPartial ?: continue
             pendingPartial = null
             val txt = decode(a, p)
-            if (txt.isNotBlank()) overlay?.partial(toDisplay(txt))
+            if (txt.isNotBlank()) {
+                val d = toDisplay(txt)
+                if (lang == "ja") overlay?.partialSegs(JaAnalyzer.analyze(d)) else overlay?.partial(d)
+            }
         }
     }
 
-    private fun onFinal(trad: String) {
-        val id = overlay?.commit(trad) ?: -1
-        val tline = TLine(trad, null)
+    private fun onFinal(raw: String) {
+        val display = toDisplay(raw)
+        val id = if (lang == "ja") (overlay?.commitSegs(JaAnalyzer.analyze(display)) ?: -1)
+        else (overlay?.commit(display) ?: -1)
+        val tline = TLine(display, null)
         synchronized(transcript) { transcript.add(tline) }
         writeTranscript()
         if (Prefs.english(this)) {
             val key = Prefs.geminiKey(this)
             scope.launch {
-                val en = Translator.translate(trad, key)
+                val en = Translator.translate(display, key)
                 if (en != null) {
                     overlay?.setEnglish(id, en)
                     synchronized(transcript) { tline.en = en }

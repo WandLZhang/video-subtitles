@@ -254,4 +254,73 @@ class CaptionOverlay(private val ctx: Context) {
         popup.text = sb
         popup.visibility = View.VISIBLE
     }
+
+    // ---- Japanese: kuromoji pre-segmented rendering ----
+    fun partialSegs(segs: List<JaAnalyzer.Seg>) = main.post {
+        if (!shown) return@post
+        val c = currentZh ?: makeZh().also { currentZh = it; container.addView(it) }
+        c.text = buildSpannableJa(segs)
+        scrollDown()
+    }
+
+    fun commitSegs(segs: List<JaAnalyzer.Seg>): Int {
+        val id = ++seq
+        main.post {
+            if (!shown) return@post
+            val zv = currentZh ?: makeZh().also { container.addView(it) }
+            zv.text = buildSpannableJa(segs)
+            committed[id] = CLine(zv, null)
+            currentZh = makeZh().also { container.addView(it) }
+            prune()
+            scrollDown()
+        }
+        return id
+    }
+
+    private fun buildSpannableJa(segs: List<JaAnalyzer.Seg>): CharSequence {
+        val sb = SpannableStringBuilder()
+        for (seg in segs) {
+            val start = sb.length
+            sb.append(seg.text)
+            sb.setSpan(ForegroundColorSpan(seg.color), start, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            if (seg.base.isNotBlank() && seg.pos.isNotBlank() && seg.pos != "particle" && seg.pos != "filler") {
+                sb.setSpan(object : ClickableSpan() {
+                    override fun onClick(w: View) = showJaPopup(seg)
+                    override fun updateDrawState(ds: TextPaint) { ds.isUnderlineText = false; ds.color = seg.color }
+                }, start, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+        }
+        return sb
+    }
+
+    private fun showJaPopup(seg: JaAnalyzer.Seg) {
+        val entries = Dict.lookup(seg.base)
+        val sb = SpannableStringBuilder()
+        val hs = sb.length
+        sb.append(seg.base)
+        sb.setSpan(StyleSpan(Typeface.BOLD), hs, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        val meta = listOf(seg.pos, seg.form).filter { it.isNotBlank() }.joinToString(" · ")
+        if (meta.isNotBlank()) {
+            sb.append("   ")
+            val m = sb.length
+            sb.append(meta)
+            sb.setSpan(ForegroundColorSpan(Color.parseColor("#9AA0A6")), m, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+        if (entries.isEmpty()) {
+            sb.append("\n(no dictionary entry)")
+        } else {
+            for (e in entries.take(4)) {
+                sb.append("\n")
+                if (e.r.isNotBlank()) {
+                    val rs = sb.length
+                    sb.append(e.r)
+                    sb.setSpan(ForegroundColorSpan(Color.parseColor("#C9CCD1")), rs, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    sb.append("  ")
+                }
+                sb.append(e.defs.take(3).joinToString("; "))
+            }
+        }
+        popup.text = sb
+        popup.visibility = View.VISIBLE
+    }
 }
