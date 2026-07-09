@@ -59,6 +59,7 @@ class MainActivity : AppCompatActivity() {
 
         findViewById<Button>(R.id.start_button).setOnClickListener { startCaptions() }
         findViewById<Button>(R.id.stop_button).setOnClickListener { stopCaptions() }
+        findViewById<Button>(R.id.share_transcript).setOnClickListener { shareTranscript() }
 
         requestBasicPermissions()
     }
@@ -104,5 +105,16 @@ class MainActivity : AppCompatActivity() {
     private fun stopCaptions() {
         stopService(Intent(this, CaptureService::class.java))
         status.text = "Stopped."
+    }
+
+    private fun shareTranscript() {
+        val f = java.io.File(java.io.File(filesDir, "transcripts"), "transcript.txt")
+        if (!f.exists() || f.length() == 0L) { status.text = "No transcript yet — run captions first."; return }
+        val send = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_SUBJECT, "Cantonese transcript")
+            putExtra(Intent.EXTRA_TEXT, f.readText())
+        }
+        startActivity(Intent.createChooser(send, "Share transcript"))
     }
 }

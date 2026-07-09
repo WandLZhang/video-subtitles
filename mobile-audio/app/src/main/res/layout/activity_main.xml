@@ -36,6 +36,12 @@
             android:layout_height="wrap_content"
             android:text="Stop captions" />
 
+        <Button
+            android:id="@+id/share_transcript"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Share session transcript" />
+
         <View
             android:layout_width="match_parent"
             android:layout_height="1dp"
