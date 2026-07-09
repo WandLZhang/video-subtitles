@@ -11,9 +11,12 @@ import android.provider.Settings
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
+import android.widget.LinearLayout
 import android.widget.RadioButton
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import kotlinx.coroutines.CoroutineScope
@@ -31,6 +34,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var langYue: RadioButton
     private lateinit var langZh: RadioButton
     private lateinit var langJa: RadioButton
+    private lateinit var sessionsContainer: LinearLayout
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     private val projLauncher =
@@ -70,7 +74,7 @@ class MainActivity : AppCompatActivity() {
 
         findViewById<Button>(R.id.start_button).setOnClickListener { startCaptions() }
         findViewById<Button>(R.id.stop_button).setOnClickListener { stopCaptions() }
-        findViewById<Button>(R.id.share_transcript).setOnClickListener { shareTranscript() }
+        sessionsContainer = findViewById(R.id.sessions_container)
 
         requestBasicPermissions()
     }
@@ -119,14 +123,64 @@ class MainActivity : AppCompatActivity() {
         status.text = "Stopped."
     }
 
-    private fun shareTranscript() {
-        val f = java.io.File(java.io.File(filesDir, "transcripts"), "transcript.txt")
-        if (!f.exists() || f.length() == 0L) { status.text = "No transcript yet — run captions first."; return }
-        val send = Intent(Intent.ACTION_SEND).apply {
-            type = "text/plain"
-            putExtra(Intent.EXTRA_SUBJECT, "Cantonese transcript")
-            putExtra(Intent.EXTRA_TEXT, f.readText())
+    override fun onResume() {
+        super.onResume()
+        renderSessions()
+    }
+
+    private fun renderSessions() {
+        sessionsContainer.removeAllViews()
+        val sessions = Sessions.list(this)
+        if (sessions.isEmpty()) {
+            sessionsContainer.addView(TextView(this).apply {
+                text = "No sessions yet. Run captions and they'll appear here."
+                setPadding(0, 8, 0, 8)
+            })
+            return
         }
-        startActivity(Intent.createChooser(send, "Share transcript"))
+        for (s in sessions) {
+            sessionsContainer.addView(TextView(this).apply {
+                text = Sessions.name(this@MainActivity, s.id)
+                textSize = 16f
+                setPadding(0, 20, 0, 20)
+                setOnClickListener { openSession(s.id) }
+            })
+        }
+    }
+
+    private fun openSession(id: String) {
+        AlertDialog.Builder(this)
+            .setTitle(Sessions.name(this, id))
+            .setMessage(Sessions.content(this, id).ifBlank { "(empty)" })
+            .setPositiveButton("Copy") { _, _ ->
+                val cm = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                cm.setPrimaryClip(android.content.ClipData.newPlainText("transcript", Sessions.content(this, id)))
+                Toast.makeText(this, "Copied", Toast.LENGTH_SHORT).show()
+            }
+            .setNeutralButton("Rename") { _, _ -> renameSession(id) }
+            .setNegativeButton("Delete") { _, _ -> deleteSession(id) }
+            .show()
+    }
+
+    private fun renameSession(id: String) {
+        val input = EditText(this).apply { setText(Sessions.name(this@MainActivity, id)) }
+        AlertDialog.Builder(this)
+            .setTitle("Rename session")
+            .setView(input)
+            .setPositiveButton("Save") { _, _ ->
+                Sessions.setName(this, id, input.text.toString().trim().ifBlank { Sessions.defaultName(id) })
+                renderSessions()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun deleteSession(id: String) {
+        AlertDialog.Builder(this)
+            .setTitle("Delete session?")
+            .setMessage(Sessions.name(this, id))
+            .setPositiveButton("Delete") { _, _ -> Sessions.delete(this, id); renderSessions() }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 }

@@ -19,12 +19,21 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 
+/** ScrollView capped at maxPx tall; grows with content, then scrolls. */
+private class MaxHeightScrollView(context: Context, private val maxPx: Int) : ScrollView(context) {
+    override fun onMeasure(widthSpec: Int, heightSpec: Int) {
+        super.onMeasure(widthSpec, MeasureSpec.makeMeasureSpec(maxPx, MeasureSpec.AT_MOST))
+    }
+}
+
 /**
- * Floating, draggable caption window. Shows the last 2 finalized lines (dim) plus a live,
- * streaming current line (bright). Each Chinese line's words are tappable for a
- * tone-coloured reading + definition popup. English fills in asynchronously per line.
+ * Floating, draggable caption window styled like Live Transcribe: one continuous, uniform
+ * stream of the whole session's lines, the live (streaming) line at the bottom, overflow
+ * scrolling up (auto-follow unless you scroll up to read back). Every Chinese word is tappable
+ * for a reading + definition popup. English lines are the one intentional style break.
  */
 class CaptionOverlay(private val ctx: Context) {
     private val wm = ctx.getSystemService(Context.WINDOW_SERVICE) as WindowManager
@@ -32,17 +41,25 @@ class CaptionOverlay(private val ctx: Context) {
 
     private lateinit var root: LinearLayout
     private lateinit var handle: TextView
-    private lateinit var lines: LinearLayout
+    private lateinit var scroll: MaxHeightScrollView
+    private lateinit var container: LinearLayout
     private lateinit var popup: TextView
     private lateinit var params: WindowManager.LayoutParams
     private var shown = false
 
-    private data class Line(val id: Int, var zh: String, var en: String?)
-    private val history = ArrayDeque<Line>()   // up to 2 finalized lines
-    private var current: Line? = null          // the streaming (partial) line
     private var reading = "jyut"
     private var lang = "yue"
     private var seq = 0
+    private var autoScroll = true
+    private var currentZh: TextView? = null
+
+    private class CLine(val zh: TextView, var en: TextView?)
+    private val committed = HashMap<Int, CLine>()
+    private val maxLines = 240
+
+    private val zhColor = Color.parseColor("#DCEBF5")
+    private val zhSize = 20f
+    private val enColor = Color.parseColor("#FFD479")
 
     fun setReading(r: String) { reading = r }
     fun setLang(l: String) { lang = l }
@@ -52,7 +69,7 @@ class CaptionOverlay(private val ctx: Context) {
         root = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(Color.parseColor("#CC000000"))
-            setPadding(28, 10, 28, 18)
+            setPadding(28, 10, 28, 16)
         }
         handle = TextView(ctx).apply {
             text = "⠿  Subtitle Everything  ·  drag"
@@ -60,7 +77,10 @@ class CaptionOverlay(private val ctx: Context) {
             setTextColor(Color.parseColor("#9AA0A6"))
             setPadding(0, 0, 0, 6)
         }
-        lines = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
+        val maxPx = (ctx.resources.displayMetrics.heightPixels * 0.42).toInt()
+        scroll = MaxHeightScrollView(ctx, maxPx).apply { isVerticalScrollBarEnabled = true }
+        container = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
+        scroll.addView(container)
         popup = TextView(ctx).apply {
             textSize = 15f
             setTextColor(Color.WHITE)
@@ -69,8 +89,12 @@ class CaptionOverlay(private val ctx: Context) {
             visibility = View.GONE
         }
         root.addView(handle)
-        root.addView(lines)
+        root.addView(scroll)
         root.addView(popup)
+
+        scroll.setOnScrollChangeListener { _, _, y, _, _ ->
+            autoScroll = y + scroll.height >= container.height - 12
+        }
 
         params = WindowManager.LayoutParams(
             (ctx.resources.displayMetrics.widthPixels * 0.94).toInt(),
@@ -78,13 +102,11 @@ class CaptionOverlay(private val ctx: Context) {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT
-        ).apply {
-            gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-            y = 160
-        }
+        ).apply { gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL; y = 140 }
         enableDrag()
         wm.addView(root, params)
         shown = true
+        currentZh = makeZh().also { container.addView(it) }
     }
 
     private fun enableDrag() {
@@ -103,63 +125,76 @@ class CaptionOverlay(private val ctx: Context) {
         }
     }
 
-    /** Live update of the in-progress line (already HK-traditional). */
-    fun partial(zh: String) = main.post { if (shown) { current = Line(-1, zh, null); render() } }
+    private fun makeZh(): TextView = TextView(ctx).apply {
+        textSize = zhSize
+        setTextColor(zhColor)
+        movementMethod = LinkMovementMethod.getInstance()
+        setPadding(0, 4, 0, 0)
+    }
 
-    /** Finalize the current line into history; returns an id to attach English later. */
+    private fun makeEn(): TextView = TextView(ctx).apply {
+        textSize = 15f
+        setTextColor(enColor)
+    }
+
+    /** Live update of the streaming line. */
+    fun partial(zh: String) = main.post {
+        if (!shown) return@post
+        val c = currentZh ?: makeZh().also { currentZh = it; container.addView(it) }
+        c.text = buildSpannable(zh)
+        scrollDown()
+    }
+
+    /** Finalize the streaming line and start a new one. Returns an id to attach English. */
     fun commit(zh: String): Int {
         val id = ++seq
         main.post {
             if (!shown) return@post
-            history.addLast(Line(id, zh, null))
-            while (history.size > 2) history.removeFirst()
-            current = null
-            render()
+            val zv = currentZh ?: makeZh().also { container.addView(it) }
+            zv.text = buildSpannable(zh)
+            committed[id] = CLine(zv, null)
+            currentZh = makeZh().also { container.addView(it) }
+            prune()
+            scrollDown()
         }
         return id
     }
 
     fun setEnglish(id: Int, en: String) = main.post {
         if (!shown) return@post
-        history.firstOrNull { it.id == id }?.let { it.en = en; render() }
+        val cl = committed[id] ?: return@post
+        val idx = container.indexOfChild(cl.zh)
+        if (idx < 0) return@post
+        var ev = cl.en
+        if (ev == null) { ev = makeEn(); container.addView(ev, idx + 1); cl.en = ev }
+        ev.text = en
+        scrollDown()
     }
 
     fun message(msg: String) = main.post {
         if (!shown) return@post
-        history.clear(); current = Line(-1, msg, null); render()
+        container.removeAllViews(); committed.clear()
+        currentZh = makeZh().also { it.text = msg; container.addView(it) }
     }
 
     fun hide() {
         if (shown) { try { wm.removeView(root) } catch (e: Exception) {}; shown = false }
     }
 
-    // ---- rendering ----
-    private fun render() {
-        popup.visibility = View.GONE
-        lines.removeAllViews()
-        for (l in history) addLine(l, dim = true)
-        current?.let { addLine(it, dim = false) }
-    }
-
-    private fun addLine(l: Line, dim: Boolean) {
-        val zhView = TextView(ctx).apply {
-            textSize = if (dim) 17f else 23f
-            setTextColor(Color.parseColor(if (dim) "#6FA8BF" else "#7FD7FF"))
-            movementMethod = LinkMovementMethod.getInstance()
-            text = buildSpannable(l.zh)
-            setPadding(0, 3, 0, 0)
-        }
-        lines.addView(zhView)
-        val en = l.en
-        if (!en.isNullOrBlank()) {
-            lines.addView(TextView(ctx).apply {
-                textSize = if (dim) 13f else 16f
-                setTextColor(Color.parseColor(if (dim) "#B39A5C" else "#FFD479"))
-                text = en
-            })
+    private fun prune() {
+        while (container.childCount > maxLines) {
+            val v = container.getChildAt(0)
+            container.removeViewAt(0)
+            val it = committed.entries.iterator()
+            while (it.hasNext()) { val e = it.next(); if (e.value.zh === v || e.value.en === v) it.remove() }
         }
     }
 
+    private fun scrollDown() {
+        if (autoScroll) scroll.post { scroll.fullScroll(View.FOCUS_DOWN) }
+    }
+
+    // ---- word spans + popup ----
     private fun buildSpannable(text: String): CharSequence {
         val sb = SpannableString(text)
         var i = 0
@@ -202,7 +237,6 @@ class CaptionOverlay(private val ctx: Context) {
                 else -> if (reading == "pinyin") e.py else e.jy.ifBlank { e.py }
             }
             if (lang == "ja") {
-                // kana has no tones — show the reading plain
                 val s = sb.length
                 sb.append(r)
                 sb.setSpan(ForegroundColorSpan(Color.parseColor("#C9CCD1")), s, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)

@@ -64,6 +64,7 @@ class CaptureService : Service() {
 
     private data class TLine(var zh: String, var en: String?)
     private val transcript = ArrayList<TLine>()
+    private var sessionFile: File? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -85,6 +86,7 @@ class CaptureService : Service() {
             it.setReading(Prefs.reading(this)); it.show(); it.message("Loading models…")
         }
         running = true
+        sessionFile = Sessions.fileFor(this, System.currentTimeMillis().toString())
         scope.launch { initAndRun() }
         return START_STICKY
     }
@@ -260,7 +262,7 @@ class CaptureService : Service() {
                     sb.append("\n")
                 }
             }
-            File(dir, "transcript.txt").writeText(sb.toString())
+            (sessionFile ?: File(dir, "transcript.txt")).writeText(sb.toString())
         } catch (e: Exception) { Log.w(TAG, "transcript write failed", e) }
     }
 

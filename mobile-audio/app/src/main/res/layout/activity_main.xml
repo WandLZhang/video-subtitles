@@ -36,12 +36,6 @@
             android:layout_height="wrap_content"
             android:text="Stop captions" />
 
-        <Button
-            android:id="@+id/share_transcript"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Share session transcript" />
-
         <View
             android:layout_width="match_parent"
             android:layout_height="1dp"
@@ -73,21 +67,24 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:checked="true"
-                android:text="Cantonese" />
+                android:textSize="18sp"
+                android:text="粵語" />
 
             <RadioButton
                 android:id="@+id/lang_zh"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="16dp"
-                android:text="Mandarin" />
+                android:layout_marginStart="20dp"
+                android:textSize="18sp"
+                android:text="國語" />
 
             <RadioButton
                 android:id="@+id/lang_ja"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="16dp"
-                android:text="Japanese" />
+                android:layout_marginStart="20dp"
+                android:textSize="18sp"
+                android:text="日本語" />
         </RadioGroup>
 
         <CheckBox
@@ -130,5 +127,19 @@
                 android:layout_marginStart="24dp"
                 android:text="Pinyin" />
         </RadioGroup>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Saved sessions"
+            android:textStyle="bold"
+            android:paddingTop="22dp"
+            android:paddingBottom="4dp" />
+
+        <LinearLayout
+            android:id="@+id/sessions_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
     </LinearLayout>
 </ScrollView>
