@@ -114,7 +114,7 @@ object JaAnalyzer {
             p1 == "感動詞" -> INTJ to "interjection"
             p1 == "助詞" -> PART to "particle"
             p1 == "助動詞" -> PART to "auxiliary"   // stray copula/aux → muted, not a fake verb
-            p1 == "連体詞" -> PART to "adnominal"
+            p1 == "連体詞" -> ADJ to "adnominal"
             p1 == "フィラー" -> MUTE to "filler"
             p1 == "記号" -> DEF to ""
             else -> DEF to (p1 ?: "")

@@ -61,6 +61,23 @@ class CaptionOverlay(private val ctx: Context) {
     private val zhSize = 20f
     private val enColor = Color.parseColor("#FFD479")
 
+    // JMdict is thin on grammatical particles, so gloss the common ones ourselves.
+    private val particleGloss = mapOf(
+        "は" to "topic marker — “as for …”", "が" to "subject marker", "を" to "direct object",
+        "に" to "to / at / in (target, time, place)", "で" to "at / by / with (place, means)",
+        "へ" to "to (direction)", "と" to "and / with / that (quote)",
+        "の" to "of / ’s (possessive); nominalizer", "も" to "also / too / even",
+        "か" to "question marker", "ね" to "right? / you know", "よ" to "emphasis (I tell you)",
+        "から" to "from / because", "まで" to "until / as far as", "より" to "than / from",
+        "や" to "and (among others)", "って" to "casual: quotative / topic “as for”",
+        "けど" to "but / though", "のに" to "even though", "ので" to "because",
+        "し" to "and (listing reasons)", "だけ" to "only / just", "しか" to "only (with negative)",
+        "でも" to "even / … or something", "ばかり" to "only / just", "くらい" to "about / to the extent",
+        "ぐらい" to "about / to the extent", "など" to "etc.", "な" to "don’t (prohibition) / emphasis",
+        "ぞ" to "emphasis (masculine)", "ぜ" to "emphasis (masculine)", "わ" to "emphasis (soft)",
+        "さ" to "you know", "かな" to "I wonder"
+    )
+
     fun setReading(r: String) { reading = r }
     fun setLang(l: String) { lang = l }
 
@@ -283,7 +300,7 @@ class CaptionOverlay(private val ctx: Context) {
             val start = sb.length
             sb.append(seg.text)
             sb.setSpan(ForegroundColorSpan(seg.color), start, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-            if (seg.base.isNotBlank() && seg.pos.isNotBlank() && seg.pos != "particle" && seg.pos != "filler") {
+            if (seg.base.isNotBlank() && seg.pos.isNotBlank() && seg.pos != "filler") {
                 sb.setSpan(object : ClickableSpan() {
                     override fun onClick(w: View) = showJaPopup(seg)
                     override fun updateDrawState(ds: TextPaint) { ds.isUnderlineText = false; ds.color = seg.color }
@@ -295,6 +312,7 @@ class CaptionOverlay(private val ctx: Context) {
 
     private fun showJaPopup(seg: JaAnalyzer.Seg) {
         val entries = Dict.lookup(seg.base)
+        val pg = if (seg.pos == "particle") (particleGloss[seg.base] ?: particleGloss[seg.text]) else null
         val sb = SpannableStringBuilder()
         val hs = sb.length
         sb.append(seg.base)
@@ -306,20 +324,23 @@ class CaptionOverlay(private val ctx: Context) {
             sb.append(meta)
             sb.setSpan(ForegroundColorSpan(Color.parseColor("#9AA0A6")), m, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
-        if (entries.isEmpty()) {
-            sb.append("\n(no dictionary entry)")
-        } else {
-            for (e in entries.take(4)) {
-                sb.append("\n")
-                if (e.r.isNotBlank()) {
-                    val rs = sb.length
-                    sb.append(e.r)
-                    sb.setSpan(ForegroundColorSpan(Color.parseColor("#C9CCD1")), rs, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                    sb.append("  ")
-                }
-                sb.append(e.defs.take(3).joinToString("; "))
-            }
+        if (pg != null) {
+            sb.append("\n")
+            val g = sb.length
+            sb.append(pg)
+            sb.setSpan(ForegroundColorSpan(Color.parseColor("#C9CCD1")), g, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
+        for (e in entries.take(4)) {
+            sb.append("\n")
+            if (e.r.isNotBlank()) {
+                val rs = sb.length
+                sb.append(e.r)
+                sb.setSpan(ForegroundColorSpan(Color.parseColor("#C9CCD1")), rs, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                sb.append("  ")
+            }
+            sb.append(e.defs.take(3).joinToString("; "))
+        }
+        if (entries.isEmpty() && pg == null) sb.append("\n(no dictionary entry)")
         popup.text = sb
         popup.visibility = View.VISIBLE
     }
