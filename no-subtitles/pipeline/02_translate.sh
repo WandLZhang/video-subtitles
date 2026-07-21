@@ -13,6 +13,11 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TOOL="$HERE/vendor/AI-translate-canto-subs"
 
 [ -d "$TOOL" ] || git clone https://github.com/rookes/AI-translate-canto-subs.git "$TOOL"
+# Apply our in-repo override of translate_srt.py: resilient model calls (retry on empty
+# response / MAX_TOKENS / SAFETY and on invalid JSON, then fall back to source text so one
+# bad LLM response doesn't crash the whole run). Kept in-repo so it survives re-clones of
+# the upstream tool. See pipeline/overrides/translate_srt.py.
+cp "$HERE/pipeline/overrides/translate_srt.py" "$TOOL/translate_srt.py"
 cd "$TOOL"
 pip install -q -r requirements.txt
 python translate_srt.py "$SRT" \
